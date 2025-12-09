@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Background / surfaces -->
+    <color name="bg_light">#F4F7FB</color>
+    <color name="panel">#FFFFFF</color>
+    <color name="card_shadow">#E6EDF7</color>
+
+    <!-- Pastel cards -->
+    <color name="card_high">#FFF0F1</color>
+    <color name="card_med">#FFF9F0</color>
+    <color name="card_low">#F0FFF6</color>
+
+    <!-- Minor cards for camera/mic/location -->
+    <color name="card_cam">#F0F6FF</color>
+    <color name="card_mic">#FAF0FF</color>
+    <color name="card_loc">#FFF4F5</color>
+
+    <!-- Badge colors -->
+    <color name="risk_high">#FF6B6B</color>
+    <color name="risk_medium">#FFB74D</color>
+    <color name="risk_low">#34C38F</color>
+
+    <!-- Text -->
+    <color name="text_primary">#1E2A3A</color>
+    <color name="text_secondary">#6B7A8A</color>
+    <color name="muted">#9AA6B2</color>
+
+    <!-- Search / outline -->
+    <color name="search_bg">#FFFFFF</color>
+    <color name="outline_light">#E2EAF3</color>
+</resources>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="filter_options">
+        <item>All</item>
+        <item>High risk</item>
+        <item>Medium risk</item>
+        <item>Low risk</item>
+    </string-array>
+
+    <string-array name="app_type_options">
+        <item>All apps</item>
+        <item>User apps</item>
+        <item>System apps</item>
+    </string-array>
+</resources>
