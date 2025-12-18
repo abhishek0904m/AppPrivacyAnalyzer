@@ -1,126 +1,81 @@
-package com.example.appprivacyanalyzer.ui
+﻿package com.example.appprivacyanalyzer.ui
 
 import android.content.Intent
-import android.graphics.Typeface
-import android.graphics.drawable.Drawable
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.view.ViewGroup
-import android.widget.Button
+import android.provider.Settings
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.appprivacyanalyzer.R
-import com.example.appprivacyanalyzer.model.AppInfo
 
 class AppDetailActivity : AppCompatActivity() {
 
     companion object {
-        const val EXTRA_APP = "extra_app"
+        const val EXTRA_PACKAGE_NAME = "extra_package_name"
+        const val EXTRA_APP_NAME = "extra_app_name"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_app_detail)
 
-        // IDs must match your layout (appIcon, appName, appPackage, riskBadge, permissionsContainer, managePermissionsBtn)
-        val ivIcon = findViewById<android.widget.ImageView>(R.id.appIcon)
-        val tvAppName = findViewById<TextView>(R.id.appName)
-        val tvPkg = findViewById<TextView>(R.id.appPackage)
-        val tvRisk = findViewById<TextView>(R.id.riskBadge)
-        val llPermissionList = findViewById<LinearLayout>(R.id.permissionsContainer)
-        val btnManage = findViewById<Button>(R.id.managePermissionsBtn)
+        val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: return
+        val packageName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: return
 
-        // getParcelableExtra is deprecated but works; keep it simple
-        val app = intent.getParcelableExtra<AppInfo>(EXTRA_APP)
-        if (app == null) {
-            Toast.makeText(this, "Failed to load app", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
+        findViewById<TextView>(R.id.tvAppName).text = appName
+        findViewById<TextView>(R.id.tvPackageName).text = packageName
 
-        // load icon safely (fallback to default if not found)
-        val icon: Drawable = try {
-            packageManager.getApplicationIcon(app.packageName)
-        } catch (e: Exception) {
-            ContextCompat.getDrawable(this, android.R.mipmap.sym_def_app_icon)!!
-        }
-        ivIcon.setImageDrawable(icon)
-
-        tvAppName.text = app.appName
-        tvPkg.text = app.packageName
-        tvRisk.text = "${app.riskLevel} (${app.riskScore})"
-
-        // Populate dangerous permissions list (only the granted dangerous permissions)
-        llPermissionList.removeAllViews()
-        if (app.dangerousPermissions.isEmpty()) {
-            val none = TextView(this).apply {
-                text = "No dangerous permissions granted."
-                setTextAppearance(android.R.style.TextAppearance_Material_Body1)
-                setTextColor(ContextCompat.getColor(this@AppDetailActivity, R.color.text_secondary))
-                val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                layoutParams = lp
+        // ✅ Open real app permission settings
+        findViewById<TextView>(R.id.btnOpenSettings).setOnClickListener {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
             }
-            llPermissionList.addView(none)
-        } else {
-            // Title inside box
-            val title = TextView(this).apply {
-                text = "Granted Permissions:"
-                setTypeface(null, Typeface.BOLD)
-                setTextColor(ContextCompat.getColor(this@AppDetailActivity, R.color.text_primary))
-                val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                lp.bottomMargin = dp(8)
-                layoutParams = lp
-            }
-            llPermissionList.addView(title)
-
-            for (perm in app.dangerousPermissions) {
-                val tv = TextView(this).apply {
-                    text = "•  $perm"
-                    setTextColor(ContextCompat.getColor(this@AppDetailActivity, R.color.text_primary))
-                    setPadding(dp(12), dp(10), dp(12), dp(10))
-                    background = ContextCompat.getDrawable(this@AppDetailActivity, R.drawable.permission_item_bg)
-                    val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-                    lp.bottomMargin = dp(8)
-                    layoutParams = lp
-                }
-                llPermissionList.addView(tv)
-            }
-        }
-
-        btnManage.setOnClickListener {
-            openAppPermissions(app.packageName)
-        }
-    }
-
-    private fun openAppPermissions(packageName: String) {
-        // 1) Try direct permissions manager intent (use literal action + literal extra key to avoid unresolved constants)
-        try {
-            val permIntent = Intent("android.settings.MANAGE_APP_PERMISSIONS")
-            // extra key used by platform
-            permIntent.putExtra("android.provider.extra.PACKAGE_NAME", packageName)
-            // set as new task (equivalent to addFlags)
-            permIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            startActivity(permIntent)
-            return
-        } catch (e: Exception) {
-            // fall through to fallback
-        }
-
-        // 2) Fallback to app details settings (works on all devices)
-        try {
-            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            intent.data = Uri.fromParts("package", packageName, null)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             startActivity(intent)
-        } catch (ex: Exception) {
-            Toast.makeText(this, "Unable to open settings", Toast.LENGTH_SHORT).show()
         }
+
+        loadSensitivePermissions(packageName)
     }
 
-    // helper: convert dp to px
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
+    private fun loadSensitivePermissions(pkg: String) {
+        val pm = packageManager
+        val container = findViewById<LinearLayout>(R.id.permissionContainer)
+        container.removeAllViews()
+
+        val info = pm.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+        val permissions = info.requestedPermissions ?: return
+        val flags = info.requestedPermissionsFlags ?: return
+
+        permissions.forEachIndexed { index, permission ->
+            val granted =
+                flags[index] and PackageInfo.REQUESTED_PERMISSION_GRANTED != 0
+
+            if (!granted) return@forEachIndexed
+
+            val label = when {
+                permission.contains("CAMERA") -> "📷 Camera access granted"
+                permission.contains("RECORD_AUDIO") -> "🎤 Microphone access granted"
+                permission.contains("LOCATION") -> "📍 Location access granted"
+                else -> null
+            }
+
+            label?.let {
+                val tv = TextView(this).apply {
+                    text = it
+                    textSize = 14f
+                    setPadding(8, 8, 8, 8)
+                    setTextColor(
+                        ContextCompat.getColor(
+                            context,
+                            android.R.color.holo_green_dark
+                        )
+                    )
+                }
+                container.addView(tv)
+            }
+        }
+    }
 }

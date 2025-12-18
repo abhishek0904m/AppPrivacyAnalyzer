@@ -2,116 +2,109 @@ package com.example.appprivacyanalyzer.data
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.graphics.drawable.Drawable
+import androidx.core.content.ContextCompat
+import com.example.appprivacyanalyzer.R
 import com.example.appprivacyanalyzer.model.AppInfo
 import com.example.appprivacyanalyzer.model.RiskLevel
 
-data class SummaryStats(
-    val totalApps: Int,
-    val highRiskCount: Int,
-    val mediumRiskCount: Int,
-    val lowRiskCount: Int,
-    val cameraApps: Int,
-    val micApps: Int,
-    val locationApps: Int
-)
-
+/**
+ * Lightweight repository to load installed apps and compute summary statistics.
+ * Defensive: never crashes if PM calls fail, always returns sensible defaults.
+ */
 class AppRepository(private val context: Context) {
 
-    private val dangerousPermissions = setOf(
-        android.Manifest.permission.CAMERA,
-        android.Manifest.permission.RECORD_AUDIO,
-        android.Manifest.permission.ACCESS_FINE_LOCATION,
-        android.Manifest.permission.ACCESS_COARSE_LOCATION,
-        android.Manifest.permission.READ_CONTACTS,
-        android.Manifest.permission.WRITE_CONTACTS,
-        android.Manifest.permission.READ_SMS,
-        android.Manifest.permission.SEND_SMS,
-        android.Manifest.permission.RECEIVE_SMS,
-        android.Manifest.permission.READ_PHONE_STATE,
-        android.Manifest.permission.CALL_PHONE,
-        android.Manifest.permission.READ_CALL_LOG,
-        android.Manifest.permission.READ_EXTERNAL_STORAGE,
-        android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        android.Manifest.permission.BODY_SENSORS
-    )
+    private val pm: PackageManager = context.packageManager
 
+    /**
+     * Load installed apps and return a list of AppInfo.
+     */
     fun loadApps(): List<AppInfo> {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS)
         val apps = mutableListOf<AppInfo>()
 
-        for (pkg in packages) {
-            val appInfo = pkg.applicationInfo
+        // Get installed application list
+        val installed = try {
+            pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        } catch (t: Throwable) {
+            emptyList<ApplicationInfo>()
+        }
 
-            val isSystemApp =
-                (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                        (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+        val fallbackIcon: Drawable? = try {
+            ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+        } catch (t: Throwable) {
+            null
+        }
 
-            val appName = appInfo.loadLabel(pm).toString()
-            val packageName = pkg.packageName
-            val icon = appInfo.loadIcon(pm)
-
-            val requestedPerms = pkg.requestedPermissions?.toList() ?: emptyList()
-            if (requestedPerms.isEmpty()) continue
-
-            val granted = mutableListOf<String>()
-            val flags = pkg.requestedPermissionsFlags
-
-            if (flags != null && flags.size == requestedPerms.size) {
-                for (i in requestedPerms.indices) {
-                    if ((flags[i] and PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0) {
-                        granted.add(requestedPerms[i])
-                    }
+        for (ai in installed) {
+            try {
+                val pkgName = ai.packageName
+                val label = try {
+                    pm.getApplicationLabel(ai).toString()
+                } catch (t: Throwable) {
+                    pkgName
                 }
-            } else {
-                granted.addAll(requestedPerms)
+
+                // requested permissions (may be null)
+                val perms = try {
+                    val pkgInfo = pm.getPackageInfo(pkgName, PackageManager.GET_PERMISSIONS)
+                    pkgInfo.requestedPermissions?.toList() ?: emptyList()
+                } catch (t: Throwable) {
+                    emptyList()
+                }
+
+                // attempt to get icon (may be null)
+                val rawIcon: Drawable? = try {
+                    pm.getApplicationIcon(pkgName)
+                } catch (t: Throwable) {
+                    null
+                }
+                val iconToUse: Drawable? = rawIcon ?: fallbackIcon
+
+                // simple risk heuristic:
+                // - count "dangerous" permissions (manifest protection level DANGEROUS)
+                // - treat camera/mic/location as higher weight
+                val dangerousCount = perms.count { p -> isDangerousPermission(p) }
+                val cameraWeight = if (perms.any { it.equals(android.Manifest.permission.CAMERA, true) }) 2 else 0
+                val micWeight = if (perms.any { it.equals(android.Manifest.permission.RECORD_AUDIO, true) }) 2 else 0
+                val locWeight = if (perms.any { it.equals(android.Manifest.permission.ACCESS_FINE_LOCATION, true) ||
+                            it.equals(android.Manifest.permission.ACCESS_COARSE_LOCATION, true) }) 2 else 0
+
+                val score = dangerousCount + cameraWeight + micWeight + locWeight
+
+                val level = when {
+                    score >= 5 -> RiskLevel.HIGH
+                    score >= 2 -> RiskLevel.MEDIUM
+                    else -> RiskLevel.LOW
+                }
+
+                val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+
+                val app = AppInfo(
+                    appName = label,
+                    packageName = pkgName,
+                    isSystemApp = isSystem,
+                    icon = iconToUse,
+                    permissions = perms,
+                    riskScore = score,
+                    riskLevel = level
+                )
+
+                apps.add(app)
+            } catch (_: Throwable) {
+                // defensive: skip problematic app entry
             }
-
-            if (granted.isEmpty()) continue
-
-            val dangerousGranted = granted.filter { it in dangerousPermissions }
-
-            val riskScore = calculateRiskScore(
-                dangerousCount = dangerousGranted.size,
-                totalPermissions = granted.size
-            )
-
-            val riskLevel = riskLevelFromScore(riskScore)
-
-            // Create without icon first (Parcelable-friendly)
-            val app = AppInfo(
-                appName = appName,
-                packageName = packageName,
-                permissions = granted,
-                dangerousPermissions = dangerousGranted,
-                riskScore = riskScore,
-                riskLevel = riskLevel,
-                isSystemApp = isSystemApp
-            )
-
-            // Assign icon after creation
-            app.icon = icon
-
-            apps.add(app)
         }
 
-        return apps.sortedByDescending { it.riskScore }
+        // Optionally sort: user apps first, alphabetically
+        apps.sortWith(compareBy({ it.isSystemApp }, { it.appName.lowercase() }))
+
+        return apps
     }
 
-    private fun calculateRiskScore(dangerousCount: Int, totalPermissions: Int): Int {
-        if (totalPermissions == 0) return 0
-        return ((dangerousCount * 100f) / totalPermissions).toInt().coerceIn(0, 100)
-    }
-
-    private fun riskLevelFromScore(score: Int): RiskLevel =
-        when {
-            score >= 70 -> RiskLevel.HIGH
-            score >= 40 -> RiskLevel.MEDIUM
-            else -> RiskLevel.LOW
-        }
-
+    /**
+     * Compute summary numbers for a list of apps.
+     */
     fun computeSummary(apps: List<AppInfo>): SummaryStats {
         var high = 0
         var medium = 0
@@ -120,19 +113,15 @@ class AppRepository(private val context: Context) {
         var mic = 0
         var loc = 0
 
-        for (app in apps) {
-            when (app.riskLevel) {
+        for (a in apps) {
+            when (a.riskLevel) {
                 RiskLevel.HIGH -> high++
                 RiskLevel.MEDIUM -> medium++
                 RiskLevel.LOW -> low++
             }
-
-            if (app.dangerousPermissions.contains(android.Manifest.permission.CAMERA)) cam++
-            if (app.dangerousPermissions.contains(android.Manifest.permission.RECORD_AUDIO)) mic++
-            if (app.dangerousPermissions.any {
-                    it == android.Manifest.permission.ACCESS_FINE_LOCATION ||
-                            it == android.Manifest.permission.ACCESS_COARSE_LOCATION
-                }) loc++
+            if (a.usesCamera) cam++
+            if (a.usesMicrophone) mic++
+            if (a.usesLocation) loc++
         }
 
         return SummaryStats(
@@ -144,5 +133,30 @@ class AppRepository(private val context: Context) {
             micApps = mic,
             locationApps = loc
         )
+    }
+
+    /**
+     * Very simple classifier to mark known dangerous permissions.
+     * This is not exhaustive; extend as needed.
+     */
+    private fun isDangerousPermission(permission: String?): Boolean {
+        if (permission == null) return false
+        val p = permission.lowercase()
+        // Basic set of dangerous permissions — extend if needed
+        val dangerousPrefixes = listOf(
+            "android.permission.READ_CONTACTS",
+            "android.permission.WRITE_CONTACTS",
+            "android.permission.SEND_SMS",
+            "android.permission.RECEIVE_SMS",
+            "android.permission.RECORD_AUDIO",
+            "android.permission.CAMERA",
+            "android.permission.ACCESS_FINE_LOCATION",
+            "android.permission.ACCESS_COARSE_LOCATION",
+            "android.permission.READ_SMS",
+            "android.permission.WRITE_EXTERNAL_STORAGE",
+            "android.permission.READ_EXTERNAL_STORAGE"
+        ).map { it.lowercase() }
+
+        return dangerousPrefixes.any { dp -> p == dp || p.contains(dp) }
     }
 }

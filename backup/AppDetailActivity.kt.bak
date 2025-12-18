@@ -1,0 +1,127 @@
+package com.example.appprivacyanalyzer.data
+
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import com.example.appprivacyanalyzer.model.AppInfo
+import com.example.appprivacyanalyzer.model.RiskLevel
+
+class AppRepository(private val context: Context) {
+
+    private val pm: PackageManager = context.packageManager
+
+    /**
+     * Load installed apps and build AppInfo list.
+     * This is intentionally defensive: permissions may be absent on some devices.
+     */
+    fun loadApps(): List<AppInfo> {
+        val apps = mutableListOf<AppInfo>()
+        try {
+            val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            for (app in packages) {
+                try {
+                    val appName = pm.getApplicationLabel(app).toString()
+                    val packageName = app.packageName
+                    val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+
+                    // get permissions safely
+                    val permissionsList = try {
+                        val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            // newer APIs use PackageManager.PackageInfoFlags; fallback is fine here
+                            pm.getPackageInfo(packageName, PackageManager.Package_INFO_FLAGS)
+                        } else {
+                            pm.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+                        }
+                        val requested = pkgInfo.requestedPermissions ?: emptyArray()
+                        requested.toList()
+                    } catch (t: Throwable) {
+                        emptyList<String>()
+                    }
+
+                    val iconDrawable = try {
+                        pm.getApplicationIcon(app)
+                    } catch (t: Throwable) {
+                        null
+                    }
+
+                    // simple risk scoring heuristic (example)
+                    val score = computeRiskScore(permissionsList)
+                    val level = when {
+                        score >= 70 -> RiskLevel.HIGH
+                        score >= 35 -> RiskLevel.MEDIUM
+                        else -> RiskLevel.LOW
+                    }
+
+                    val info = AppInfo(
+                        appName = appName,
+                        packageName = packageName,
+                        isSystemApp = isSystem,
+                        icon = iconDrawable,
+                        permissions = permissionsList,
+                        riskScore = score,
+                        riskLevel = level
+                    )
+                    apps.add(info)
+                } catch (t: Throwable) {
+                    Log.w("AppRepository", "skipping app due to: ${t.message}")
+                }
+            }
+        } catch (t: Throwable) {
+            Log.e("AppRepository", "loadApps failed: ${t.message}", t)
+        }
+        return apps.sortedBy { it.appName.lowercase() }
+    }
+
+    private fun computeRiskScore(permissions: List<String>): Int {
+        // Example scoring: assign points for dangerous perms. Tweak to your logic.
+        var score = 0
+        permissions.forEach { p ->
+            when (p) {
+                android.Manifest.permission.CAMERA -> score += 25
+                android.Manifest.permission.RECORD_AUDIO -> score += 25
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION -> score += 20
+                android.Manifest.permission.READ_CONTACTS,
+                android.Manifest.permission.WRITE_CONTACTS -> score += 15
+                android.Manifest.permission.SEND_SMS,
+                android.Manifest.permission.RECEIVE_SMS -> score += 20
+                else -> {}
+            }
+        }
+        // clamp 0..100
+        if (score > 100) score = 100
+        return score
+    }
+
+    fun computeSummary(apps: List<AppInfo>): SummaryStats {
+        var high = 0
+        var medium = 0
+        var low = 0
+        var camera = 0
+        var mic = 0
+        var location = 0
+
+        for (a in apps) {
+            when (a.riskLevel) {
+                RiskLevel.HIGH -> high++
+                RiskLevel.MEDIUM -> medium++
+                RiskLevel.LOW -> low++
+            }
+            if (a.usesCamera) camera++
+            if (a.usesMicrophone) mic++
+            if (a.usesLocation) location++
+        }
+
+        return SummaryStats(
+            totalApps = apps.size,
+            highRiskCount = high,
+            mediumRiskCount = medium,
+            lowRiskCount = low,
+            cameraApps = camera,
+            micApps = mic,
+            locationApps = location
+        )
+    }
+}

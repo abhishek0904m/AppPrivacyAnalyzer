@@ -1,31 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Background / surfaces -->
-    <color name="bg_light">#F4F7FB</color>
-    <color name="panel">#FFFFFF</color>
-    <color name="card_shadow">#E6EDF7</color>
+    <!-- primary / app brand -->
+    <color name="primary">#6200EE</color>
+    <color name="primary_dark">#3700B3</color>
 
-    <!-- Pastel cards -->
-    <color name="card_high">#FFF0F1</color>
-    <color name="card_med">#FFF9F0</color>
-    <color name="card_low">#F0FFF6</color>
+    <!-- purple gradient used in header / buttons -->
+    <color name="purple_500">#6200EE</color>
+    <color name="purple_700">#3700B3</color>
+    <color name="purple_start">#5D2BE0</color>
+    <color name="purple_end">#7B1FFF</color>
 
-    <!-- Minor cards for camera/mic/location -->
-    <color name="card_cam">#F0F6FF</color>
-    <color name="card_mic">#FAF0FF</color>
-    <color name="card_loc">#FFF4F5</color>
+    <!-- neutrals / backgrounds -->
+    <color name="white">#FFFFFF</color>
+    <color name="bg_light">#F5F6F7</color>
+    <color name="bg_gray">#ECECEC</color>
 
-    <!-- Badge colors -->
-    <color name="risk_high">#FF6B6B</color>
-    <color name="risk_medium">#FFB74D</color>
-    <color name="risk_low">#34C38F</color>
+    <!-- text -->
+    <color name="text_primary">#222222</color>
+    <color name="text_secondary">#757575</color>
+    <color name="muted">#9E9E9E</color>
 
-    <!-- Text -->
-    <color name="text_primary">#1E2A3A</color>
-    <color name="text_secondary">#6B7A8A</color>
-    <color name="muted">#9AA6B2</color>
+    <!-- chips / badges -->
+    <color name="chip_text">#FFFFFF</color>
 
-    <!-- Search / outline -->
-    <color name="search_bg">#FFFFFF</color>
-    <color name="outline_light">#E2EAF3</color>
+    <!-- risk / severity colors -->
+    <color name="high_red">#D84315</color>
+    <color name="blue_dark">#1565C0</color>
+
+    <!-- orange / amber used for medium/low styling in your layouts -->
+    <color name="amber">#FFC107</color>
+    <color name="medium_orange">#FF9800</color>
+    <color name="chip_orange">#FF9800</color>
+
+    <!-- badge colors (low/medium/high) -->
+    <color name="badge_low">#4CAF50</color>        <!-- green fallback -->
+    <color name="badge_medium">#FF9800</color>     <!-- orange -->
+    <color name="badge_high">#D84315</color>       <!-- red/orange -->
+    <color name="card_bg">#FFFFFF</color>
+
+    <!-- a few extras in case referenced elsewhere -->
+    <color name="accent">#03DAC5</color>
+    <color name="disabled">#BDBDBD</color>
 </resources>

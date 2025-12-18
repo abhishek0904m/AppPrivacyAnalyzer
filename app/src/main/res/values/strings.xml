@@ -1,6 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">App Privacy Analyzer</string>
-    <string name="app_icon">App icon</string>
-    <string name="export_report">Export Report</string>
+    <string name="app_name">AppPrivacyAnalyzer</string>
+    <string name="export_report">Export report</string>
+    <string name="permissions_and_sensors">Permissions &amp; Sensors</string>
+    <string name="app_icon">App</string>
+    <string name="search_hint">Search apps or package name</string>
+    <string name="perm_icon">Permissions</string>
+
+    <!-- Keys used by AppsFragment and the debug fragment code -->
+    <string name="total_apps_analyzed">Total apps analyzed: %1$d</string>
+    <string name="high_label">High</string>
+    <string name="medium_label">Medium</string>
+    <string name="low_label">Low</string>
+    <string name="camera_label">Camera</string>
+    <string name="mic_label">Mic</string>
+    <string name="location_label">Location</string>
+    <string-array name="app_type_filter">
+        <item>All apps</item>
+        <item>User apps</item>
+        <item>System apps</item>
+    </string-array>
+
+    <string-array name="risk_filter">
+        <item>All</item>
+        <item>High</item>
+        <item>Medium</item>
+        <item>Low</item>
+    </string-array>
+
+
+    <!-- Generic UI -->
+    <string name="loading">Loading…</string>
+    <string name="no_apps_found">No apps found</string>
 </resources>

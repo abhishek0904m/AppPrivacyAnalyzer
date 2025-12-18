@@ -3,10 +3,15 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permission needed to scan all installed apps -->
+    <!-- Permission to scan all installed apps -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- Permission to read APK file (Android 12 and below) -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="true"
@@ -16,17 +21,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppPrivacyAnalyzer">
 
-        <!-- App Detail Screen (not exported) -->
-        <activity
-            android:name=".ui.AppDetailActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.MainActivity">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".ui.MainActivity" />
-        </activity>
-
-        <!-- Main Launcher Activity -->
+        <!-- Main Launcher -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true">
@@ -35,6 +30,24 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- App list / detail -->
+        <activity
+            android:name=".ui.AppDetailActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- Installed / System apps list -->
+        <activity
+            android:name=".ui.InstalledAppsActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
+
+        <!-- Scan result screen (⚠️ THIS WAS MISSING) -->
+        <activity
+            android:name=".ui.ScanResultActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity" />
 
     </application>
 
