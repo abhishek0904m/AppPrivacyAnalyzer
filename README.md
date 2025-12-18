@@ -136,16 +136,17 @@ This project is suitable for:
 - Secure software design principles  
 
 ---
-
 ## 📦 Installation
 
-```bash
-git clone https://github.com/abhishek0904m/AppPrivacyAnalyzer.git
-Open the project in Android Studio
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/abhishek0904m/AppPrivacyAnalyzer.git
 
-Allow Gradle sync to complete
+2. Open the project in Android Studio
 
-Connect a physical Android device or start an emulator
+3. Allow Gradle sync to complete
+
+4. Connect a physical Android device or start an emulator
 (Android 11 / API 30 or higher recommended)
 
-Click Run ▶ to build and launch the app
+5. Click Run ▶ to build and launch the app
