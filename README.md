@@ -141,3 +141,11 @@ This project is suitable for:
 
 ```bash
 git clone https://github.com/abhishek0904m/AppPrivacyAnalyzer.git
+Open the project in Android Studio
+
+Allow Gradle sync to complete
+
+Connect a physical Android device or start an emulator
+(Android 11 / API 30 or higher recommended)
+
+Click Run ▶ to build and launch the app
