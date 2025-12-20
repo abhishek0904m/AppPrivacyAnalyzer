@@ -44,7 +44,7 @@
 
             <TextView
                 android:id="@+id/tvPackage"
-                android:textColor="#666"
+                android:textColor="#666666"
                 android:layout_marginBottom="8dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
@@ -61,12 +61,24 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
 
+            <!-- SIGNATURE VERIFICATION RESULT -->
+            <TextView
+                android:id="@+id/tvSignature"
+                android:layout_marginTop="10dp"
+                android:text="Signature verification will appear here"
+                android:textColor="#444444"
+                android:textSize="14sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <!-- FINAL RISK SCORE -->
             <TextView
                 android:id="@+id/tvScore"
                 android:textStyle="bold"
                 android:layout_marginTop="8dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content" />
+
         </LinearLayout>
 
     </LinearLayout>
