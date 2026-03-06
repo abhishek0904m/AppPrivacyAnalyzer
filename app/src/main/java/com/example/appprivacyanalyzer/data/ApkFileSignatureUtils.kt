@@ -14,37 +14,42 @@ object ApkFileSignatureUtils {
         apkUri: Uri
     ): Pair<String, Boolean>? {
 
-        val pm = context.packageManager
+        return try {
+            val pm = context.packageManager
 
-        val apkFile = copyApkToCache(context, apkUri) ?: return null
+            val apkFile = copyApkToCache(context, apkUri) ?: return null
 
-        val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            pm.getPackageArchiveInfo(
-                apkFile.absolutePath,
-                PackageManager.GET_SIGNING_CERTIFICATES
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            pm.getPackageArchiveInfo(
-                apkFile.absolutePath,
-                PackageManager.GET_SIGNATURES
-            )
-        } ?: return null
+            val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pm.getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    PackageManager.GET_SIGNATURES
+                )
+            } ?: return null
 
-        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            pkgInfo.signingInfo.apkContentsSigners
-        } else {
-            @Suppress("DEPRECATION")
-            pkgInfo.signatures
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pkgInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                pkgInfo.signatures
+            }
+
+            if (signatures == null || signatures.isEmpty()) return null
+
+            val cert = CertificateUtils.signatureToX509(signatures[0])
+            val sha256 = CryptoUtils.sha256(cert.encoded)
+            val isSelfSigned = cert.subjectDN.equals(cert.issuerDN)
+
+            Pair(sha256, isSelfSigned)
+        } catch (e: Exception) {
+            android.util.Log.e("ApkFileSignatureUtils", "Error extracting signature from APK", e)
+            null
         }
-
-        if (signatures.isEmpty()) return null
-
-        val cert = CertificateUtils.signatureToX509(signatures[0])
-        val sha256 = CryptoUtils.sha256(cert.encoded)
-        val isSelfSigned = cert.subjectDN == cert.issuerDN
-
-        return Pair(sha256, isSelfSigned)
     }
 
     private fun copyApkToCache(context: Context, uri: Uri): File? {
@@ -58,6 +63,7 @@ object ApkFileSignatureUtils {
             }
             file
         } catch (e: Exception) {
+            android.util.Log.e("ApkFileSignatureUtils", "Error copying APK to cache", e)
             null
         }
     }

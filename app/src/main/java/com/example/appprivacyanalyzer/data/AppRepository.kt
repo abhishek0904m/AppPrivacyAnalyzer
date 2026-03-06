@@ -10,101 +10,111 @@ import com.example.appprivacyanalyzer.model.AppInfo
 import com.example.appprivacyanalyzer.model.RiskLevel
 
 /**
- * Lightweight repository to load installed apps and compute summary statistics.
- * Defensive: never crashes if PM calls fail, always returns sensible defaults.
+ * Loads installed apps and computes risk + summary stats.
+ * Uses a realistic permission-based risk model.
  */
 class AppRepository(private val context: Context) {
 
     private val pm: PackageManager = context.packageManager
 
-    /**
-     * Load installed apps and return a list of AppInfo.
-     */
     fun loadApps(): List<AppInfo> {
         val apps = mutableListOf<AppInfo>()
 
-        // Get installed application list
         val installed = try {
             pm.getInstalledApplications(PackageManager.GET_META_DATA)
-        } catch (t: Throwable) {
+        } catch (e: Exception) {
             emptyList<ApplicationInfo>()
         }
 
-        val fallbackIcon: Drawable? = try {
+        val fallbackIcon: Drawable? =
             ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
-        } catch (t: Throwable) {
-            null
-        }
 
         for (ai in installed) {
             try {
                 val pkgName = ai.packageName
+
                 val label = try {
                     pm.getApplicationLabel(ai).toString()
-                } catch (t: Throwable) {
+                } catch (e: Exception) {
                     pkgName
                 }
 
-                // requested permissions (may be null)
                 val perms = try {
                     val pkgInfo = pm.getPackageInfo(pkgName, PackageManager.GET_PERMISSIONS)
                     pkgInfo.requestedPermissions?.toList() ?: emptyList()
-                } catch (t: Throwable) {
+                } catch (e: Exception) {
                     emptyList()
                 }
 
-                // attempt to get icon (may be null)
-                val rawIcon: Drawable? = try {
+                val icon = try {
                     pm.getApplicationIcon(pkgName)
-                } catch (t: Throwable) {
-                    null
+                } catch (e: Exception) {
+                    fallbackIcon
                 }
-                val iconToUse: Drawable? = rawIcon ?: fallbackIcon
 
-                // simple risk heuristic:
-                // - count "dangerous" permissions (manifest protection level DANGEROUS)
-                // - treat camera/mic/location as higher weight
-                val dangerousCount = perms.count { p -> isDangerousPermission(p) }
-                val cameraWeight = if (perms.any { it.equals(android.Manifest.permission.CAMERA, true) }) 2 else 0
-                val micWeight = if (perms.any { it.equals(android.Manifest.permission.RECORD_AUDIO, true) }) 2 else 0
-                val locWeight = if (perms.any { it.equals(android.Manifest.permission.ACCESS_FINE_LOCATION, true) ||
-                            it.equals(android.Manifest.permission.ACCESS_COARSE_LOCATION, true) }) 2 else 0
+                // ----------- IMPROVED RISK LOGIC -----------
 
-                val score = dangerousCount + cameraWeight + micWeight + locWeight
+                val usesCamera =
+                    perms.contains(android.Manifest.permission.CAMERA)
 
-                val level = when {
-                    score >= 5 -> RiskLevel.HIGH
-                    score >= 2 -> RiskLevel.MEDIUM
+                val usesMic =
+                    perms.contains(android.Manifest.permission.RECORD_AUDIO)
+
+                val usesLocation =
+                    perms.contains(android.Manifest.permission.ACCESS_FINE_LOCATION) ||
+                            perms.contains(android.Manifest.permission.ACCESS_COARSE_LOCATION)
+
+                val usesContacts =
+                    perms.any { it.contains("READ_CONTACTS") || it.contains("WRITE_CONTACTS") }
+
+                val usesSms =
+                    perms.any { it.contains("READ_SMS") || it.contains("SEND_SMS") }
+
+                val usesStorage =
+                    perms.any {
+                        it.contains("READ_EXTERNAL_STORAGE") ||
+                                it.contains("WRITE_EXTERNAL_STORAGE")
+                    }
+
+                var score = 0
+                if (usesCamera) score += 2
+                if (usesMic) score += 2
+                if (usesLocation) score += 2
+                if (usesContacts) score += 2
+                if (usesSms) score += 2
+                if (usesStorage) score += 1
+
+                val riskLevel = when {
+                    score >= 6 -> RiskLevel.HIGH
+                    score >= 3 -> RiskLevel.MEDIUM
                     else -> RiskLevel.LOW
                 }
 
-                val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                val isSystemApp =
+                    (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
 
-                val app = AppInfo(
-                    appName = label,
-                    packageName = pkgName,
-                    isSystemApp = isSystem,
-                    icon = iconToUse,
-                    permissions = perms,
-                    riskScore = score,
-                    riskLevel = level
+                apps.add(
+                    AppInfo(
+                        appName = label,
+                        packageName = pkgName,
+                        isSystemApp = isSystemApp,
+                        icon = icon,
+                        permissions = perms,
+                        riskScore = score,
+                        riskLevel = riskLevel
+                    )
                 )
-
-                apps.add(app)
-            } catch (_: Throwable) {
-                // defensive: skip problematic app entry
+            } catch (_: Exception) {
+                // skip broken entries safely
             }
         }
 
-        // Optionally sort: user apps first, alphabetically
+        // User apps first, then alphabetically
         apps.sortWith(compareBy({ it.isSystemApp }, { it.appName.lowercase() }))
 
         return apps
     }
 
-    /**
-     * Compute summary numbers for a list of apps.
-     */
     fun computeSummary(apps: List<AppInfo>): SummaryStats {
         var high = 0
         var medium = 0
@@ -119,6 +129,7 @@ class AppRepository(private val context: Context) {
                 RiskLevel.MEDIUM -> medium++
                 RiskLevel.LOW -> low++
             }
+
             if (a.usesCamera) cam++
             if (a.usesMicrophone) mic++
             if (a.usesLocation) loc++
@@ -133,30 +144,5 @@ class AppRepository(private val context: Context) {
             micApps = mic,
             locationApps = loc
         )
-    }
-
-    /**
-     * Very simple classifier to mark known dangerous permissions.
-     * This is not exhaustive; extend as needed.
-     */
-    private fun isDangerousPermission(permission: String?): Boolean {
-        if (permission == null) return false
-        val p = permission.lowercase()
-        // Basic set of dangerous permissions — extend if needed
-        val dangerousPrefixes = listOf(
-            "android.permission.READ_CONTACTS",
-            "android.permission.WRITE_CONTACTS",
-            "android.permission.SEND_SMS",
-            "android.permission.RECEIVE_SMS",
-            "android.permission.RECORD_AUDIO",
-            "android.permission.CAMERA",
-            "android.permission.ACCESS_FINE_LOCATION",
-            "android.permission.ACCESS_COARSE_LOCATION",
-            "android.permission.READ_SMS",
-            "android.permission.WRITE_EXTERNAL_STORAGE",
-            "android.permission.READ_EXTERNAL_STORAGE"
-        ).map { it.lowercase() }
-
-        return dangerousPrefixes.any { dp -> p == dp || p.contains(dp) }
     }
 }

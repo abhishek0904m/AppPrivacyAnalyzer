@@ -147,24 +147,41 @@ class AppsFragment : Fragment() {
     private fun showLoading(show: Boolean) {
         loadingOverlay.visibility = if (show) View.VISIBLE else View.GONE
         progressBar.visibility = if (show) View.VISIBLE else View.GONE
+        rvApps.visibility = if (show) View.GONE else View.VISIBLE
     }
 
     private fun loadDataAsync() {
         showLoading(true)
         lifecycleScope.launch {
             try {
+                Log.d(TAG, "Starting to load apps...")
                 val apps = withContext(Dispatchers.IO) {
                     repository.loadApps()
                 }
+                Log.d(TAG, "Loaded ${apps.size} apps")
                 allApps = apps
                 adapter.updateData(allApps)
                 updateSummary(repository.computeSummary(allApps))
+                
+                // Show empty state if no apps loaded
+                if (apps.isEmpty()) {
+                    showEmptyState()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Load failed", e)
+                showErrorState(e.message ?: "Unknown error")
             } finally {
                 showLoading(false)
             }
         }
+    }
+
+    private fun showEmptyState() {
+        tvSummary.text = "⚠️ No apps found. Check app permissions."
+    }
+
+    private fun showErrorState(error: String) {
+        tvSummary.text = "❌ Error loading apps: $error"
     }
 
     // ---------------- SUMMARY ----------------
@@ -174,9 +191,9 @@ class AppsFragment : Fragment() {
         tvHighRiskCount.text = "High: ${stats.highRiskCount}"
         tvMediumRiskCount.text = "Medium: ${stats.mediumRiskCount}"
         tvLowRiskCount.text = "Low: ${stats.lowRiskCount}"
-        tvCameraApps.text = "Camera: ${stats.cameraApps}"
-        tvMicApps.text = "Mic: ${stats.micApps}"
-        tvLocationApps.text = "Location: ${stats.locationApps}"
+        tvCameraApps.text = "📷 ${stats.cameraApps}"
+        tvMicApps.text = "🎤 ${stats.micApps}"
+        tvLocationApps.text = "📍 ${stats.locationApps}"
     }
 
     // ---------------- FILTER LOGIC ----------------
